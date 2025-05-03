@@ -1079,6 +1079,60 @@ optfn_altkeyhandling(
 }
 
 staticfn int
+optfn_autoadjust(
+    int optidx,
+    int req,
+    boolean negated,
+    char *opts,
+    char *op)
+{
+    char delim = '/';
+    if (req == do_init) {
+        return optn_ok;
+    }
+    if (req == do_set) {
+        /* do option set processing for the option */
+        /* if successful, return optn_ok;    */
+        /* if unsuccessful, return optn_err; */
+        //This will need to parse the string.
+        if (negated) {
+            bad_negation(allopt[optidx].name, TRUE);
+            return optn_err;
+        }
+        op = trimspaces(op); /* might have leading space */
+        if (strlen(op) < 3 || (op[1] != delim && op[2] != delim)) {
+            config_error_add("Illegal %s value: The second or third character must be '/'", allopt[optidx].name);
+            return optn_err;
+        }
+        //Either 0 or 1.
+        int letter_pos = 0 + !(op[1] == delim);
+        char letter = op[letter_pos];
+        if (!((letter >= 'A' && letter <= 'Z') || (letter >= 'a' && letter <= 'z'))) {
+            config_error_add("Illegal %s value: The inventory letter must be a-zA-Z", allopt[optidx].name);
+            return optn_err;
+        }
+        //Figure out later.
+        int type = 0;
+        char *matchtext = op+letter_pos+2;
+        pline("Autopickup: '%s' = '%c'.", matchtext, letter);//
+    }
+    if (req == get_val || req == get_cnf_val) {
+        //One of these appears to be the "current" value, the other the "active" value.
+        //This is for configuration options that can be changed but don't immediately take effect.
+        //(I have no idea which is which; the enum isn't documented)
+        //I think most complex options just return an empty string.
+        opts[0] = '\0';
+        return optn_ok;
+    }
+    //I think this is just for menus? Which I think should be done but not immediately.
+    //if (req == do_handler) {
+    //}
+
+ 
+    return optn_ok;
+}
+
+staticfn int
 optfn_autounlock(
     int optidx,
     int req,

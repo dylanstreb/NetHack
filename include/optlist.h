@@ -167,6 +167,9 @@ static int optfn_##a(int, int, boolean, char *, char *);
     NHOPTB(ascii_map, Advanced, 0, opt_in, set_in_game,
                 ascii_map_Def, Yes, No, No, NoAlias, &iflags.wc_ascii_map,
            Term_False, "show map as text")
+    /*Should probably be NHOPTO with an editing menu. */
+    NHOPTC(autoadjust, Advanced, 3, BUFSZ, opt_in, set_in_config,
+                No, Yes, No, NoAlias, "automatic inventory assignments")
     NHOPTO("autocompletions", Advanced, o_autocomplete, BUFSZ, opt_in, set_in_game,
                 No, Yes, No, NoAlias, "edit autocompletions")
     NHOPTB(autodescribe, Advanced, 0, opt_out, set_in_game,
