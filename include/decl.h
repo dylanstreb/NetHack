@@ -181,6 +181,9 @@ struct instance_globals_a {
     struct h2o_ctx acid_ctx;
 
     boolean havestate;
+
+    /* Autoadjust patch */
+    struct autoadjust_entry *autoadjustments;
 };
 
 struct instance_globals_b {

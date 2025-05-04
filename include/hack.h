@@ -931,6 +931,13 @@ struct autopickup_exception {
     struct autopickup_exception *next;
 };
 
+struct autoadjust_entry {
+    char letter;    /* letter for this rule. [a-zA-Z]. */
+    char *name;     /* Name to match against. Needs to be freed. */
+    int type;       /* Type of rule. Not implemented. */
+    struct autoadjust_entry *next; /* Next in linked list. */
+};
+
 /* at most one of `door' and `box' should be non-null at any given time */
 struct xlock_s {
     struct rm *door;

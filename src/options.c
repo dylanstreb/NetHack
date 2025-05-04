@@ -400,6 +400,7 @@ staticfn void all_options_apes(strbuf_t *);
 staticfn void all_options_palette(strbuf_t *);
 #endif
 staticfn void remove_autopickup_exception(struct autopickup_exception *);
+staticfn void remove_autoadjust(struct autoadjust_entry *);
 staticfn int count_apes(void);
 staticfn int count_cond(void);
 staticfn void enhance_menu_text(char *, size_t, int, boolean *,
@@ -1115,6 +1116,7 @@ optfn_autoadjust(
         int type = 0;
         char *matchtext = op+letter_pos+2;
         pline("Autopickup: '%s' = '%c'.", matchtext, letter);//
+        add_autoadjust(letter, type, matchtext);
     }
     if (req == get_val || req == get_cnf_val) {
         //One of these appears to be the "current" value, the other the "active" value.
@@ -9438,6 +9440,40 @@ free_autopickup_exceptions(void)
         regex_free(ape->regex);
         ga.apelist = ape->next;
         free((genericptr_t) ape);
+    }
+}
+
+int
+add_autoadjust(char letter, int type, const char *text)
+{
+    //Caller is responsible for ensuring letter is valid, text is not empty.
+    struct autoadjust_entry *aa;
+
+    aa = (struct autoadjust_entry *) alloc(sizeof *aa);
+    aa->name = dupstr(text);
+    aa->letter = letter;
+    aa->next = ga.autoadjustments;
+    aa->type = type; /*Not implemented; will probably become an enum*/
+    ga.autoadjustments = aa;
+
+    return 1;
+}
+
+staticfn void
+remove_autoadjust(struct autoadjust_entry *which)
+{
+    /*This would be for removing from a menu, so not yet needed.*/
+}
+
+void
+free_autoadjust_entries(void)
+{
+    struct autoadjust_entry *aa;
+
+    while ((aa = ga.autoadjustments) != 0) {
+printf("Free: %s\n", aa->name);//
+        free((genericptr_t) aa->name);
+        ga.autoadjustments = aa->next;
     }
 }
 

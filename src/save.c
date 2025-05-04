@@ -1249,6 +1249,7 @@ freedynamicdata(void)
     if (iflags.wc_tile_file)
         free((genericptr_t) iflags.wc_tile_file), iflags.wc_tile_file = 0;
     free_autopickup_exceptions();
+    free_autoadjust_entries();
 
     /* miscellaneous */
     /* free_pickinv_cache();  --  now done from really_done()... */
