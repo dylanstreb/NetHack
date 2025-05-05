@@ -1343,6 +1343,7 @@ extern void sync_perminvent(void);
 extern void perm_invent_toggled(boolean negated);
 extern void prepare_perminvent(winid window);
 extern struct obj *carrying_stoning_corpse(void);
+extern void get_item_match_name(struct obj *, char[]);
 
 /* ### ioctl.c ### */
 

@@ -50,6 +50,15 @@ staticfn void itemactions_pushkeys(struct obj *, int);
 staticfn int itemactions(struct obj *);
 staticfn int dispinv_with_action(char *, boolean, const char *);
 
+//PLACE LOCAL NEW FUNCS HERE
+
+staticfn struct obj *get_item_for_letter(char);
+staticfn boolean item_is_preferred_letter(char, const char *);
+staticfn char get_item_preferred_letter(const char *);
+staticfn boolean is_reserved_letter(char);
+staticfn void swap_items(struct obj *, struct obj *);
+//
+
 /* enum and structs are defined in wintype.h */
 static win_request_info wri_info;
 static int perminv_flags = InvOptNone;
@@ -706,6 +715,10 @@ assigninvlet(struct obj *otmp)
     boolean inuse[invlet_basic];
     int i;
     struct obj *obj;
+    char text[BUFSZ];
+
+    get_item_match_name(otmp, text);
+    pline1(text);
 
     /* there should be at most one of these in inventory... */
     if (otmp->oclass == COIN_CLASS) {
@@ -1178,6 +1191,136 @@ carry_obj_effects(struct obj *obj)
 }
 
 DISABLE_WARNING_FORMAT_NONLITERAL
+
+//FUNCTION IMPLEMENTATIONS HERE
+//
+
+/*Loop over inventory and return the object for the specified letter
+Returns null if no such match, or if $# is used*/
+staticfn struct obj *
+get_item_for_letter(char letter)
+{
+    int idx;
+    struct obj *otmp;
+    idx = invletter_value(letter);
+    if (idx == 1 || idx > 53) {
+        //Just uses existing function to avoid special slots
+        return NULL;
+    }
+    for (otmp = gi.invent; otmp; otmp = otmp->nobj) {
+        if (otmp->invlet == letter) 
+            return otmp;
+    }
+    return NULL;
+}
+
+/* Convert an item to a string name for matching.
+This will include all "possible" names for it and the type.
+This is to enable matching on "crude dagger" and "orcish dagger"
+or all amulets, or smoky potions, etc.
+*/
+void
+get_item_match_name(struct obj *obj, char buf[])
+{
+    boolean name_known = objects[obj->otyp].oc_name_known != 0;
+    int otyp = obj->otyp;
+    const char *actualn = OBJ_NAME(objects[otyp]);
+    const char *dn = OBJ_DESCR(objects[otyp]);
+    const char *typename = def_oc_syms[(uchar) obj->oclass].name;
+
+    //Clear out information based on known flags.
+    //actualn requires type known (for class) and object descr known
+    if (!actualn || !obj->dknown || !name_known)
+        actualn = "";
+    if (!dn || !obj->dknown)
+        dn = "";
+    //typename is always available, even when blind
+    //artifact name?
+
+    Sprintf(buf, "|%s|%s|%s|", actualn, dn, typename);
+}
+
+/* Returns true if there is any autoadjust rule that matches this item
+to this slot. It is possible for an item to match multiple letters,
+so it is not enough to get the appropriate letter and compare to that.
+*/
+staticfn boolean
+item_is_preferred_letter(char letter, const char *itemname)
+{
+    struct autoadjust_entry *aa;
+
+    for (aa = ga.autoadjustments; aa; aa = aa->next) {
+        //Will also need to check type; make sure this isn't a negation
+        if (aa->letter == letter && strstr(itemname, aa->name))
+            return TRUE;
+    }
+    return FALSE;
+}
+
+/* If an autoadjust rule exists for item, return the last (first in file)
+matching letter. Returns \0 if no rule exists.
+*/
+staticfn char
+get_item_preferred_letter(const char *itemname)
+{
+    char ret;
+    struct autoadjust_entry *aa;
+
+    ret = '\0';
+    for (aa = ga.autoadjustments; aa; aa = aa->next) {
+        //Will also need to check type; make sure this isn't a negation
+        //This will return the last match (first in file). There's no priority.
+        //Should there be?
+        if (strstr(itemname, aa->name))
+            ret = aa->letter;
+    }
+    return ret;
+}
+
+/* Returns true if any autoadjust rule exists that uses this letter as reserved 
+*/
+staticfn boolean
+is_reserved_letter(char letter)
+{
+    //Different types aren't implemented.
+    return FALSE;
+}
+
+/*Simplified version of doorganize; used to swap a new item that has a 
+preferred letter with an item already using that letter.
+This does not need all of the complexity of adjust, e.g. splitting stacks.
+The new object must not be in the inventory (OBJ_FREE); the old obj must 
+already be in the inventory (OBJ_INV).
+invlet for the new object should still be set; this is where the old obj goes.
+*/
+staticfn void
+swap_items(struct obj *newobj, struct obj *oldobj)
+{
+    char newletter, oldletter;
+
+    if (newobj->where != OBJ_FREE)
+        panic("swap_items: newobj should be out of inventory.");
+    if (oldobj->where != OBJ_INVENT)
+        panic("swap_items: oldobj should be in inventory.");
+    if (!newobj->invlet)
+        panic("newobj must still have an invletter");
+
+    oldletter = oldobj->invlet;
+    newletter = newobj->invlet;
+
+    //Remove old obj from inv (copied from adjust)
+    extract_nobj(oldobj, &gi.invent);
+
+    oldobj->invlet = newletter;
+    newobj->invlet = oldletter;
+    //Re-add object to beginning of inventory
+    oldobj->nobj = gi.invent;
+    oldobj->where = OBJ_INVENT;
+    gi.invent = oldobj;
+    reorder_invent();
+}
+
+//-----------------
 
 /* Add an item to the inventory unless we're fumbling or it refuses to be
  * held (via touch_artifact), and give a message.
