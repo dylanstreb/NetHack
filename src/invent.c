@@ -53,7 +53,8 @@ staticfn int dispinv_with_action(char *, boolean, const char *);
 //PLACE LOCAL NEW FUNCS HERE
 
 staticfn struct obj *get_item_for_letter(char);
-staticfn boolean item_is_preferred_letter(char, const char *);
+staticfn boolean item_is_preferred_letter(struct obj *);
+staticfn char should_swap(struct obj *);
 staticfn char get_item_preferred_letter(const char *);
 staticfn boolean is_reserved_letter(char);
 staticfn void swap_items(struct obj *, struct obj *);
@@ -714,11 +715,8 @@ assigninvlet(struct obj *otmp)
 {
     boolean inuse[invlet_basic];
     int i;
-    struct obj *obj;
-    char text[BUFSZ];
-
-    get_item_match_name(otmp, text);
-    pline1(text);
+    struct obj *obj, *other;
+    char preferred;
 
     /* there should be at most one of these in inventory... */
     if (otmp->oclass == COIN_CLASS) {
@@ -751,7 +749,23 @@ assigninvlet(struct obj *otmp)
     }
     otmp->invlet =
         (inuse[i] ? NOINVSYM : (i < 26) ? ('a' + i) : ('A' + i - 26));
-    gl.lastinvnr = i;
+    if ((preferred = should_swap(otmp))) {
+        other = get_item_for_letter(preferred);
+        //If there is an existing item in this slot, swap.
+        //Otherwise, just use it.
+        if (!other)
+            otmp->invlet = preferred;
+        else if (other && !item_is_preferred_letter(other)) {
+            prinv("Moving:", other, 0L);
+            swap_items(otmp, other);
+            //Update lastinvnr, since something was put in there.
+            gl.lastinvnr = i;
+        }
+        else
+            gl.lastinvnr = i;
+    }
+    else
+        gl.lastinvnr = i;
 }
 
 /* note: assumes ASCII; toggling a bit puts lowercase in front of uppercase */
@@ -1245,16 +1259,34 @@ to this slot. It is possible for an item to match multiple letters,
 so it is not enough to get the appropriate letter and compare to that.
 */
 staticfn boolean
-item_is_preferred_letter(char letter, const char *itemname)
+item_is_preferred_letter(struct obj *obj)
 {
     struct autoadjust_entry *aa;
+    char letter = obj->invlet;
+    char text[BUFSZ];
+    get_item_match_name(obj, text);
 
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
         //Will also need to check type; make sure this isn't a negation
-        if (aa->letter == letter && strstr(itemname, aa->name))
+        if (aa->letter == letter && strstr(text, aa->name))
             return TRUE;
     }
     return FALSE;
+}
+
+/*A newly picked up item should be moved to a new location if it has a matching
+rule, and if it is not currently on a matching rule
+(There may be more than one matching rule)
+*/
+staticfn char
+should_swap(struct obj *obj)
+{
+    char itemname[BUFSZ];
+    get_item_match_name(obj, itemname);
+
+    if (item_is_preferred_letter(obj))
+        return '\0';
+    return get_item_preferred_letter(itemname);
 }
 
 /* If an autoadjust rule exists for item, return the last (first in file)

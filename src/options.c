@@ -1115,7 +1115,6 @@ optfn_autoadjust(
         //Figure out later.
         int type = 0;
         char *matchtext = op+letter_pos+2;
-        pline("Autopickup: '%s' = '%c'.", matchtext, letter);//
         add_autoadjust(letter, type, matchtext);
     }
     if (req == get_val || req == get_cnf_val) {
@@ -9471,7 +9470,6 @@ free_autoadjust_entries(void)
     struct autoadjust_entry *aa;
 
     while ((aa = ga.autoadjustments) != 0) {
-printf("Free: %s\n", aa->name);//
         free((genericptr_t) aa->name);
         ga.autoadjustments = aa->next;
     }
