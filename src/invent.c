@@ -1241,6 +1241,7 @@ get_item_match_name(struct obj *obj, char buf[])
     const char *actualn = OBJ_NAME(objects[otyp]);
     const char *dn = OBJ_DESCR(objects[otyp]);
     const char *typename = def_oc_syms[(uchar) obj->oclass].name;
+    unsigned armcat = objects[otyp].oc_armcat;
 
     //Clear out information based on known flags.
     //actualn requires type known (for class) and object descr known
@@ -1248,6 +1249,39 @@ get_item_match_name(struct obj *obj, char buf[])
         actualn = "";
     if (!dn || !obj->dknown)
         dn = "";
+    //Special aliases (not worth trying to add all of alt_spellings)
+    if (otyp == GRAY_DRAGON_SCALE_MAIL)
+        dn = "grey dragon scale mail";
+    else if (otyp == GRAY_DRAGON_SCALES)
+        dn = "grey dragon scales";
+    else if (otyp == PICK_AXE)
+        dn = "pickaxe";
+    //For armor, also add the slot
+    switch (armcat) {
+        case ARM_SUIT:
+            typename = "body armor|suit|armor";
+            break;
+        case ARM_CLOAK:
+            typename = "cloak|armor";
+            break;
+        case ARM_HELM:
+            typename = "helmet|armor";
+            break;
+        case ARM_GLOVES:
+            typename = "gloves|armor";
+            break;
+        case ARM_BOOTS:
+            typename = "boots|armor";
+            break;
+        case ARM_SHIELD:
+            typename = "shield|armor";
+            break;
+        case ARM_SHIRT:
+            typename = "shirt|armor";
+            break;
+        default:
+            break;
+    }
     //typename is always available, even when blind
     //artifact name?
 
@@ -1268,7 +1302,7 @@ item_is_preferred_letter(struct obj *obj)
 
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
         //Will also need to check type; make sure this isn't a negation
-        if (aa->letter == letter && strstr(text, aa->name))
+        if (aa->letter == letter && strstri(text, aa->name))
             return TRUE;
     }
     return FALSE;
@@ -1303,7 +1337,7 @@ get_item_preferred_letter(const char *itemname)
         //Will also need to check type; make sure this isn't a negation
         //This will return the last match (first in file). There's no priority.
         //Should there be?
-        if (strstr(itemname, aa->name))
+        if (strstri(itemname, aa->name))
             ret = aa->letter;
     }
     return ret;
