@@ -756,8 +756,8 @@ assigninvlet(struct obj *otmp)
         if (!other)
             otmp->invlet = preferred;
         else if (other && !item_is_preferred_letter(other)) {
-            prinv("Moving:", other, 0L);
             swap_items(otmp, other);
+            prinv("Moving:", other, 0L);
             //Update lastinvnr, since something was put in there.
             gl.lastinvnr = i;
         }
@@ -1298,14 +1298,18 @@ item_is_preferred_letter(struct obj *obj)
     struct autoadjust_entry *aa;
     char letter = obj->invlet;
     char text[BUFSZ];
+    boolean ret = FALSE;
     get_item_match_name(obj, text);
 
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
-        //Will also need to check type; make sure this isn't a negation
-        if (aa->letter == letter && strstri(text, aa->name))
-            return TRUE;
+        if (aa->letter == letter && strstri(text, aa->name)) {
+            //If a negation exists always return false.
+            if (aa->type == AA_NEGATE || aa->type == AA_SOFT_NEGATE)
+                return FALSE;
+            ret = TRUE;
+        }
     }
-    return FALSE;
+    return ret;
 }
 
 /*A newly picked up item should be moved to a new location if it has a matching
@@ -1324,7 +1328,7 @@ should_swap(struct obj *obj)
 }
 
 /* If an autoadjust rule exists for item, return the last (first in file)
-matching letter. Returns \0 if no rule exists.
+matching letter. Returns \0 if no rule exists, or if a negation exists.
 */
 staticfn char
 get_item_preferred_letter(const char *itemname)
@@ -1334,11 +1338,14 @@ get_item_preferred_letter(const char *itemname)
 
     ret = '\0';
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
-        //Will also need to check type; make sure this isn't a negation
         //This will return the last match (first in file). There's no priority.
         //Should there be?
-        if (strstri(itemname, aa->name))
+        if (strstri(itemname, aa->name)) {
+            //If a negation exists, cancel other matches.
+            if (aa->type == AA_NEGATE || aa->type == AA_SOFT_NEGATE)
+                return '\0';
             ret = aa->letter;
+        }
     }
     return ret;
 }
@@ -1348,7 +1355,13 @@ get_item_preferred_letter(const char *itemname)
 staticfn boolean
 is_reserved_letter(char letter)
 {
-    //Different types aren't implemented.
+    struct autoadjust_entry *aa;
+
+    for (aa = ga.autoadjustments; aa; aa = aa->next) {
+        if (aa->letter == letter && 
+            (aa->type == AA_RESERVED || aa->type == AA_EXCLUSIVE))
+            return TRUE;
+    }
     return FALSE;
 }
 

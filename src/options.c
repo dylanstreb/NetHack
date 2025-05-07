@@ -401,6 +401,7 @@ staticfn void all_options_palette(strbuf_t *);
 #endif
 staticfn void remove_autopickup_exception(struct autopickup_exception *);
 staticfn void remove_autoadjust(struct autoadjust_entry *);
+staticfn enum autoadjust_type autoadjust_symbol_to_enum(char);
 staticfn int count_apes(void);
 staticfn int count_cond(void);
 staticfn void enhance_menu_text(char *, size_t, int, boolean *,
@@ -1095,7 +1096,6 @@ optfn_autoadjust(
         /* do option set processing for the option */
         /* if successful, return optn_ok;    */
         /* if unsuccessful, return optn_err; */
-        //This will need to parse the string.
         if (negated) {
             bad_negation(allopt[optidx].name, TRUE);
             return optn_err;
@@ -1113,9 +1113,11 @@ optfn_autoadjust(
             return optn_err;
         }
         //Figure out later.
-        int type = 0;
+        char typechr = '\0';
+        if (letter_pos == 1)
+            typechr = op[0];
         char *matchtext = op+letter_pos+2;
-        add_autoadjust(letter, type, matchtext);
+        add_autoadjust(letter, autoadjust_symbol_to_enum(typechr), matchtext);
     }
     if (req == get_val || req == get_cnf_val) {
         //One of these appears to be the "current" value, the other the "active" value.
@@ -9443,7 +9445,7 @@ free_autopickup_exceptions(void)
 }
 
 int
-add_autoadjust(char letter, int type, const char *text)
+add_autoadjust(char letter, enum autoadjust_type type, const char *text)
 {
     //Caller is responsible for ensuring letter is valid, text is not empty.
     struct autoadjust_entry *aa;
@@ -9452,16 +9454,52 @@ add_autoadjust(char letter, int type, const char *text)
     aa->name = dupstr(text);
     aa->letter = letter;
     aa->next = ga.autoadjustments;
-    aa->type = type; /*Not implemented; will probably become an enum*/
+    aa->type = type;
     ga.autoadjustments = aa;
 
     return 1;
+}
+
+staticfn enum autoadjust_type
+autoadjust_symbol_to_enum(char sym)
+{
+    switch (sym) {
+        case '\0': case ' ':
+            return AA_PREFERRED;
+        case '^':
+            return AA_RESERVED;
+        case '~':
+            return AA_EXCLUSIVE;
+        case '-':
+            return AA_SOFT_NEGATE;
+        case '!':
+            return AA_NEGATE;
+        default:
+            return AA_PREFERRED;
+    }
 }
 
 staticfn void
 remove_autoadjust(struct autoadjust_entry *which)
 {
     /*This would be for removing from a menu, so not yet needed.*/
+    struct autoadjust_entry *aa, *free_aa, *prev = 0;
+
+    for (aa = ga.autoadjustments; aa;) {
+        if (aa == which) {
+            free_aa = aa;
+            aa = aa->next;
+            if (prev)
+                prev->next = aa;
+            else
+                ga.autoadjustments = aa;
+            free((genericptr_t) free_aa->name);
+            free((genericptr_t) free_aa);
+        } else {
+            prev = aa;
+            aa = aa->next;
+        }
+    }
 }
 
 void
@@ -9472,6 +9510,7 @@ free_autoadjust_entries(void)
     while ((aa = ga.autoadjustments) != 0) {
         free((genericptr_t) aa->name);
         ga.autoadjustments = aa->next;
+        free((genericptr_t) aa);
     }
 }
 

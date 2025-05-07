@@ -2273,7 +2273,7 @@ extern void set_wc2_option_mod_status(unsigned long, int);
 extern void set_option_mod_status(const char *, int) NONNULLARG1;
 extern int add_autopickup_exception(const char *) NONNULLARG1;
 extern void free_autopickup_exceptions(void);
-extern int add_autoadjust(char, int, const char *);
+extern int add_autoadjust(char, enum autoadjust_type, const char *);
 extern void free_autoadjust_entries(void);
 extern void set_playmode(void);
 extern int sym_val(const char *) NONNULLARG1;
