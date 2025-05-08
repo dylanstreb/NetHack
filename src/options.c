@@ -1094,8 +1094,6 @@ optfn_autoadjust(
     }
     if (req == do_set) {
         /* do option set processing for the option */
-        /* if successful, return optn_ok;    */
-        /* if unsuccessful, return optn_err; */
         if (negated) {
             bad_negation(allopt[optidx].name, TRUE);
             return optn_err;
@@ -1120,18 +1118,14 @@ optfn_autoadjust(
         add_autoadjust(letter, autoadjust_symbol_to_enum(typechr), matchtext);
     }
     if (req == get_val || req == get_cnf_val) {
-        //One of these appears to be the "current" value, the other the "active" value.
-        //This is for configuration options that can be changed but don't immediately take effect.
-        //(I have no idea which is which; the enum isn't documented)
         //I think most complex options just return an empty string.
         opts[0] = '\0';
         return optn_ok;
     }
-    //I think this is just for menus? Which I think should be done but not immediately.
+    //I think this is just for menus?
     //if (req == do_handler) {
     //}
 
- 
     return optn_ok;
 }
 
@@ -9471,9 +9465,9 @@ autoadjust_symbol_to_enum(char sym)
         case '~':
             return AA_EXCLUSIVE;
         case '-':
-            return AA_SOFT_NEGATE;
-        case '!':
             return AA_NEGATE;
+        case '!':
+            return AA_FORBID;
         default:
             return AA_PREFERRED;
     }

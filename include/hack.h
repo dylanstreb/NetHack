@@ -935,8 +935,8 @@ enum autoadjust_type {
     AA_PREFERRED = 0, /*Automatically #adjust this item to this letter*/
     AA_RESERVED = 1, /*Skip non-matching items until inventory is full*/
     AA_EXCLUSIVE = 2, /*Do not allow non-matching items in this letter*/
-    AA_SOFT_NEGATE = 3, /*If another positive match also applies, ignore it*/
-    AA_NEGATE = 4 /*Do not use this letter for this item (negated match)*/
+    AA_NEGATE = 3, /*If another positive match also applies, ignore it*/
+    AA_FORBID = 4 /*Do not use this letter for this item (negated match)*/
 };
 
 struct autoadjust_entry {

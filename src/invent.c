@@ -49,16 +49,12 @@ staticfn void ia_addmenu(winid, int, char, const char *);
 staticfn void itemactions_pushkeys(struct obj *, int);
 staticfn int itemactions(struct obj *);
 staticfn int dispinv_with_action(char *, boolean, const char *);
-
-//PLACE LOCAL NEW FUNCS HERE
-
 staticfn struct obj *get_item_for_letter(char);
 staticfn boolean item_is_preferred_letter(struct obj *);
 staticfn char should_swap(struct obj *, const char *);
 staticfn char get_item_preferred_letter(const char *);
 staticfn short is_reserved_letter(const char *, char);
 staticfn void swap_items(struct obj *, struct obj *);
-//
 
 /* enum and structs are defined in wintype.h */
 static win_request_info wri_info;
@@ -1225,9 +1221,6 @@ carry_obj_effects(struct obj *obj)
 
 DISABLE_WARNING_FORMAT_NONLITERAL
 
-//FUNCTION IMPLEMENTATIONS HERE
-//
-
 /*Loop over inventory and return the object for the specified letter
 Returns null if no such match, or if $# is used*/
 staticfn struct obj *
@@ -1324,7 +1317,7 @@ item_is_preferred_letter(struct obj *obj)
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
         if (aa->letter == letter && strstri(text, aa->name)) {
             //If a negation exists always return false.
-            if (aa->type == AA_NEGATE || aa->type == AA_SOFT_NEGATE)
+            if (aa->type == AA_FORBID || aa->type == AA_NEGATE)
                 return FALSE;
             ret = TRUE;
         }
@@ -1359,7 +1352,7 @@ get_item_preferred_letter(const char *itemname)
         //Should there be?
         if (strstri(itemname, aa->name)) {
             //If a negation exists, cancel other matches.
-            if (aa->type == AA_NEGATE || aa->type == AA_SOFT_NEGATE)
+            if (aa->type == AA_FORBID || aa->type == AA_NEGATE)
                 return '\0';
             ret = aa->letter;
         }
@@ -1384,7 +1377,7 @@ is_reserved_letter(const char *text, char letter)
             //The caller should automatically re-assign the letter
             if (aa->type == AA_RESERVED || aa->type == AA_EXCLUSIVE)
                 return 1 + (aa->type == AA_RESERVED);
-            if (aa->type == AA_NEGATE && strstri(text, aa->name))
+            if (aa->type == AA_FORBID && strstri(text, aa->name))
                 return 1;
         }
     }
