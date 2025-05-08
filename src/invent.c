@@ -54,9 +54,9 @@ staticfn int dispinv_with_action(char *, boolean, const char *);
 
 staticfn struct obj *get_item_for_letter(char);
 staticfn boolean item_is_preferred_letter(struct obj *);
-staticfn char should_swap(struct obj *);
+staticfn char should_swap(struct obj *, const char *);
 staticfn char get_item_preferred_letter(const char *);
-staticfn boolean is_reserved_letter(char);
+staticfn short is_reserved_letter(const char *, char);
 staticfn void swap_items(struct obj *, struct obj *);
 //
 
@@ -713,10 +713,12 @@ sortloot(
 void
 assigninvlet(struct obj *otmp)
 {
-    boolean inuse[invlet_basic];
-    int i;
+    short inuse[invlet_basic];
+    int i, saved;
     struct obj *obj, *other;
     char preferred;
+    char itemname[BUFSZ];
+    get_item_match_name(otmp, itemname);
 
     /* there should be at most one of these in inventory... */
     if (otmp->oclass == COIN_CLASS) {
@@ -724,6 +726,7 @@ assigninvlet(struct obj *otmp)
         return;
     }
 
+    saved = -1;
     for (i = 0; i < invlet_basic; i++)
         inuse[i] = FALSE;
     for (obj = gi.invent; obj; obj = obj->nobj)
@@ -736,6 +739,14 @@ assigninvlet(struct obj *otmp)
             if (i == otmp->invlet)
                 otmp->invlet = 0;
         }
+    for (i = 0; i < invlet_basic; i++) {
+        if (!inuse[i]) {
+            inuse[i] = is_reserved_letter(
+                itemname,
+                (i < 26) ? ('a' + i) : ('A' + i - 26)
+            );
+        }
+    }
     if ((i = otmp->invlet)
         && (('a' <= i && i <= 'z') || ('A' <= i && i <= 'Z')))
         return;
@@ -746,10 +757,18 @@ assigninvlet(struct obj *otmp)
         }
         if (!inuse[i])
             break;
+        //Record the first non-exclusive reserved letter.
+        if (inuse[i] == 2 && saved == -1) {
+            saved = i;
+        }
+    }
+    if (inuse[i] && saved != -1 && inuse[saved] == 2) {
+        i = saved;
+        inuse[i] = 0;
     }
     otmp->invlet =
         (inuse[i] ? NOINVSYM : (i < 26) ? ('a' + i) : ('A' + i - 26));
-    if ((preferred = should_swap(otmp))) {
+    if ((preferred = should_swap(otmp, itemname))) {
         other = get_item_for_letter(preferred);
         //If there is an existing item in this slot, swap.
         //Otherwise, just use it.
@@ -1241,7 +1260,6 @@ get_item_match_name(struct obj *obj, char buf[])
     const char *actualn = OBJ_NAME(objects[otyp]);
     const char *dn = OBJ_DESCR(objects[otyp]);
     const char *typename = def_oc_syms[(uchar) obj->oclass].name;
-    unsigned armcat = objects[otyp].oc_armcat;
 
     //Clear out information based on known flags.
     //actualn requires type known (for class) and object descr known
@@ -1257,30 +1275,32 @@ get_item_match_name(struct obj *obj, char buf[])
     else if (otyp == PICK_AXE)
         dn = "pickaxe";
     //For armor, also add the slot
-    switch (armcat) {
-        case ARM_SUIT:
-            typename = "body armor|suit|armor";
-            break;
-        case ARM_CLOAK:
-            typename = "cloak|armor";
-            break;
-        case ARM_HELM:
-            typename = "helmet|armor";
-            break;
-        case ARM_GLOVES:
-            typename = "gloves|armor";
-            break;
-        case ARM_BOOTS:
-            typename = "boots|armor";
-            break;
-        case ARM_SHIELD:
-            typename = "shield|armor";
-            break;
-        case ARM_SHIRT:
-            typename = "shirt|armor";
-            break;
-        default:
-            break;
+    if (obj->oclass == ARMOR_CLASS) {
+        switch (objects[otyp].oc_armcat) {
+            case ARM_SUIT:
+                typename = "body armor|suit|armor";
+                break;
+            case ARM_CLOAK:
+                typename = "cloak|armor";
+                break;
+            case ARM_HELM:
+                typename = "helmet|armor";
+                break;
+            case ARM_GLOVES:
+                typename = "gloves|armor";
+                break;
+            case ARM_BOOTS:
+                typename = "boots|armor";
+                break;
+            case ARM_SHIELD:
+                typename = "shield|armor";
+                break;
+            case ARM_SHIRT:
+                typename = "shirt|armor";
+                break;
+            default:
+                break;
+        }
     }
     //typename is always available, even when blind
     //artifact name?
@@ -1317,11 +1337,8 @@ rule, and if it is not currently on a matching rule
 (There may be more than one matching rule)
 */
 staticfn char
-should_swap(struct obj *obj)
+should_swap(struct obj *obj, const char *itemname)
 {
-    char itemname[BUFSZ];
-    get_item_match_name(obj, itemname);
-
     if (item_is_preferred_letter(obj))
         return '\0';
     return get_item_preferred_letter(itemname);
@@ -1350,19 +1367,28 @@ get_item_preferred_letter(const char *itemname)
     return ret;
 }
 
-/* Returns true if any autoadjust rule exists that uses this letter as reserved 
+/* Returns a truthy value if any autoadjust rule exists that
+reserves this letter. This is either exclusive (nothing else allowed)
+or soft (favor other letters until inv is full).
+'2' is returned in the latter case.
+Also checks if the specific item has an exclusion rule
 */
-staticfn boolean
-is_reserved_letter(char letter)
+staticfn short
+is_reserved_letter(const char *text, char letter)
 {
     struct autoadjust_entry *aa;
 
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
-        if (aa->letter == letter && 
-            (aa->type == AA_RESERVED || aa->type == AA_EXCLUSIVE))
-            return TRUE;
+        if (aa->letter == letter) {
+            //This doesn't check if the reservation is for this item.
+            //The caller should automatically re-assign the letter
+            if (aa->type == AA_RESERVED || aa->type == AA_EXCLUSIVE)
+                return 1 + (aa->type == AA_RESERVED);
+            if (aa->type == AA_NEGATE && strstri(text, aa->name))
+                return 1;
+        }
     }
-    return FALSE;
+    return 0;
 }
 
 /*Simplified version of doorganize; used to swap a new item that has a 
