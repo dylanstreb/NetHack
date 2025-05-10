@@ -1314,6 +1314,9 @@ item_is_preferred_letter(struct obj *obj)
     boolean ret = FALSE;
     get_item_match_name(obj, text);
 
+    if (!flags.invlet_constant)
+        return FALSE;
+
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
         if (aa->letter == letter && strstri(text, aa->name)) {
             //If a negation exists always return false.
@@ -1332,6 +1335,8 @@ rule, and if it is not currently on a matching rule
 staticfn char
 should_swap(struct obj *obj, const char *itemname)
 {
+    if (!flags.invlet_constant)
+        return '\0';
     if (item_is_preferred_letter(obj))
         return '\0';
     return get_item_preferred_letter(itemname);
@@ -1347,6 +1352,8 @@ get_item_preferred_letter(const char *itemname)
     struct autoadjust_entry *aa;
 
     ret = '\0';
+    if (!flags.invlet_constant)
+        return '\0';
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
         //This will return the last match (first in file). There's no priority.
         //Should there be?
@@ -1370,6 +1377,8 @@ staticfn short
 is_reserved_letter(const char *text, char letter)
 {
     struct autoadjust_entry *aa;
+    if (!flags.invlet_constant)
+        return FALSE;
 
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
         if (aa->letter == letter) {
@@ -1417,8 +1426,6 @@ swap_items(struct obj *newobj, struct obj *oldobj)
     gi.invent = oldobj;
     reorder_invent();
 }
-
-//-----------------
 
 /* Add an item to the inventory unless we're fumbling or it refuses to be
  * held (via touch_artifact), and give a message.
