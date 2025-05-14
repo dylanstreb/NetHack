@@ -275,6 +275,7 @@ static struct Comp_Opt {
     { "align_message", "message window alignment", 20, DISP_IN_GAME }, /*WC*/
     { "align_status", "status window alignment", 20, DISP_IN_GAME },   /*WC*/
     { "altkeyhandler", "alternate key handler", 20, SET_IN_GAME },
+    { "autoadjust", "automatic inventory assignments", 255, SET_IN_FILE },
 #ifdef BACKWARD_COMPAT
     { "boulder", "deprecated (use S_boulder in sym file instead)", 1,
       SET_IN_GAME },
@@ -575,6 +576,8 @@ STATIC_DCL boolean FDECL(special_handling, (const char *,
 STATIC_DCL const char *FDECL(get_compopt_value, (const char *, char *));
 STATIC_DCL void FDECL(remove_autopickup_exception,
                       (struct autopickup_exception *));
+STATIC_DCL void FDECL(remove_autoadjust, (struct autoadjust_entry *));
+STATIC_DCL enum autoadjust_type FDECL(autoadjust_symbol_to_enum, (char));
 
 STATIC_DCL boolean FDECL(is_wc_option, (const char *));
 STATIC_DCL boolean FDECL(wc_supported, (const char *));
@@ -5993,6 +5996,36 @@ dotogglepickup()
 }
 
 int
+add_autoadjust_opt(op)
+const char *op;
+{
+    /* Automatically adjust inv letters */
+    op = trimspaces(op); /* might have leading space */
+    if (strlen(op) < 3 || (op[1] != '/' && op[2] != '/')) {
+        config_error_add("Illegal %s value: The second or third "
+                         "character must be '/'",
+                         "autoadjust");
+        return FALSE;
+    }
+    // Either 0 or 1.
+    int letter_pos = 0 + !(op[1] == '/');
+    char letter = op[letter_pos];
+    if (!((letter >= 'A' && letter <= 'Z')
+          || (letter >= 'a' && letter <= 'z'))) {
+        config_error_add(
+            "Illegal %s value: The inventory letter must be a-zA-Z",
+            "autoadjust");
+        return FALSE;
+    }
+    // Figure out later.
+    char typechr = '\0';
+    if (letter_pos == 1)
+        typechr = op[0];
+    char *matchtext = op + letter_pos + 2;
+    add_autoadjust(letter, autoadjust_symbol_to_enum(typechr), matchtext);
+}
+
+int
 add_autopickup_exception(mapping)
 const char *mapping;
 {
@@ -6326,6 +6359,77 @@ const char *str;
         free((genericptr_t) buf), buf = 0;
     }
     return;
+}
+
+int
+add_autoadjust(char letter, enum autoadjust_type type, const char *text)
+{
+    // Caller is responsible for ensuring letter is valid, text is not empty.
+    struct autoadjust_entry *aa;
+
+    aa = (struct autoadjust_entry *) alloc(sizeof *aa);
+    aa->name = dupstr(text);
+    aa->letter = letter;
+    aa->next = autoadjustments;
+    aa->type = type;
+    autoadjustments = aa;
+
+    return 1;
+}
+
+static enum autoadjust_type
+autoadjust_symbol_to_enum(char sym)
+{
+    switch (sym) {
+    case '\0':
+    case ' ':
+        return AA_PREFERRED;
+    case '^':
+        return AA_RESERVED;
+    case '~':
+        return AA_EXCLUSIVE;
+    case '-':
+        return AA_NEGATE;
+    case '!':
+        return AA_FORBID;
+    default:
+        return AA_PREFERRED;
+    }
+}
+
+static void
+remove_autoadjust(struct autoadjust_entry *which)
+{
+    /*This would be for removing from a menu, so not yet needed.*/
+    struct autoadjust_entry *aa, *free_aa, *prev = 0;
+
+    for (aa = autoadjustments; aa;) {
+        if (aa == which) {
+            free_aa = aa;
+            aa = aa->next;
+            if (prev)
+                prev->next = aa;
+            else
+                autoadjustments = aa;
+            free((genericptr_t) free_aa->name);
+            free((genericptr_t) free_aa);
+        } else {
+            prev = aa;
+            aa = aa->next;
+        }
+    }
+}
+
+void
+free_autoadjust_entries(void)
+{
+    struct autoadjust_entry *aa;
+
+    while ((aa = autoadjustments) != 0) {
+        free((genericptr_t) aa->name);
+        autoadjustments = aa->next;
+        free((genericptr_t) aa);
+    }
 }
 
 /* Returns the fid of the fruit type; if that type already exists, it

@@ -2344,6 +2344,8 @@ char *origbuf;
             retval = FALSE;
     } else if (match_varname(buf, "AUTOPICKUP_EXCEPTION", 5)) {
         add_autopickup_exception(bufp);
+    } else if (match_varname(buf, "AUTOADJUST", 10)) {
+        add_autoadjust_opt(bufp);
     } else if (match_varname(buf, "BINDINGS", 4)) {
         if (!parsebindings(bufp))
             retval = FALSE;

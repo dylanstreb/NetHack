@@ -423,6 +423,23 @@ struct autopickup_exception {
 };
 E struct autopickup_exception *apelist;
 
+enum autoadjust_type {
+    AA_PREFERRED = 0, /*Automatically #adjust this item to this letter*/
+    AA_RESERVED = 1,  /*Skip non-matching items until inventory is full*/
+    AA_EXCLUSIVE = 2, /*Do not allow non-matching items in this letter*/
+    AA_NEGATE = 3,    /*If another positive match also applies, ignore it*/
+    AA_FORBID = 4     /*Do not use this letter for this item (negated match)*/
+};
+
+struct autoadjust_entry {
+    char letter;               /* letter for this rule. [a-zA-Z]. */
+    char *name;                /* Name to match against. Needs to be freed. */
+    enum autoadjust_type type; /* Type of rule. */
+    struct autoadjust_entry *next; /* Next in linked list. */
+};
+
+E struct autoadjust_entry *autoadjustments;
+
 struct plinemsg_type {
     xchar msgtype;  /* one of MSGTYP_foo */
     struct nhregex *regex;

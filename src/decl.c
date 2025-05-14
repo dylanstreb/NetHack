@@ -218,6 +218,8 @@ NEARDATA struct monst *mydogs = (struct monst *) 0;
 NEARDATA struct monst *migrating_mons = (struct monst *) 0;
 NEARDATA struct autopickup_exception *apelist =
                             (struct autopickup_exception *)0;
+NEARDATA struct autoadjust_entry *autoadjustments =
+    (struct autoadjust_entry *) 0;
 
 NEARDATA struct mvitals mvitals[NUMMONS];
 NEARDATA long domove_attempting = 0L;
