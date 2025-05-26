@@ -51,10 +51,13 @@ staticfn int itemactions(struct obj *);
 staticfn int dispinv_with_action(char *, boolean, const char *);
 staticfn struct obj *get_item_for_letter(char);
 staticfn boolean item_is_preferred_letter(struct obj *);
-staticfn char should_swap(struct obj *, const char *);
-staticfn char get_item_preferred_letter(const char *);
+staticfn char should_swap(struct obj *, const char *, const short *);
+staticfn char get_item_preferred_letter(const char *, const short *);
 staticfn short is_reserved_letter(const char *, char);
 staticfn void swap_items(struct obj *, struct obj *);
+char idx_to_invlet(short);
+short invlet_to_idx(char);
+staticfn boolean negated_match(char, const char *);
 
 /* enum and structs are defined in wintype.h */
 static win_request_info wri_info;
@@ -706,10 +709,28 @@ sortloot(
 }
 #endif /*0*/
 
+//(invletter_value can't be used because it treats 'a' as 1)
+char
+idx_to_invlet(short i)
+{
+    return (i < 26) ? ('a' + i) : ('A' + i - 26);
+}
+
+short
+invlet_to_idx(char c)
+{
+    if ('a' <= c && c <= 'z')
+        return (c - 'a');
+    else if ('A' <= c && c <= 'Z')
+        return (c - 'A' + 26);
+    //should be an error
+    return -1;
+}
+
 void
 assigninvlet(struct obj *otmp)
 {
-    short inuse[invlet_basic];
+    short inuse[invlet_basic], reserved[invlet_basic];
     int i, saved;
     struct obj *obj, *other;
     char preferred;
@@ -735,17 +756,18 @@ assigninvlet(struct obj *otmp)
             if (i == otmp->invlet)
                 otmp->invlet = 0;
         }
+    if ((i = otmp->invlet)
+        && (('a' <= i && i <= 'z') || ('A' <= i && i <= 'Z')))
+        return;
+    memcpy(reserved, inuse, sizeof(inuse));
     for (i = 0; i < invlet_basic; i++) {
         if (!inuse[i]) {
             inuse[i] = is_reserved_letter(
                 itemname,
-                (i < 26) ? ('a' + i) : ('A' + i - 26)
+                idx_to_invlet(i)
             );
         }
     }
-    if ((i = otmp->invlet)
-        && (('a' <= i && i <= 'z') || ('A' <= i && i <= 'Z')))
-        return;
     for (i = gl.lastinvnr + 1; i != gl.lastinvnr; i++) {
         if (i == invlet_basic) {
             i = -1;
@@ -764,7 +786,7 @@ assigninvlet(struct obj *otmp)
     }
     otmp->invlet =
         (inuse[i] ? NOINVSYM : (i < 26) ? ('a' + i) : ('A' + i - 26));
-    if ((preferred = should_swap(otmp, itemname))) {
+    if ((preferred = should_swap(otmp, itemname, reserved))) {
         other = get_item_for_letter(preferred);
         //If there is an existing item in this slot, swap.
         //Otherwise, just use it.
@@ -1333,38 +1355,65 @@ rule, and if it is not currently on a matching rule
 (There may be more than one matching rule)
 */
 staticfn char
-should_swap(struct obj *obj, const char *itemname)
+should_swap(struct obj *obj, const char *itemname, const short *filled_slots)
 {
     if (!flags.invlet_constant)
         return '\0';
     if (item_is_preferred_letter(obj))
         return '\0';
-    return get_item_preferred_letter(itemname);
+    return get_item_preferred_letter(itemname, filled_slots);
 }
 
 /* If an autoadjust rule exists for item, return the last (first in file)
 matching letter. Returns \0 if no rule exists, or if a negation exists.
+If there are multiple matching rules, will favor unused inventory slots.
 */
 staticfn char
-get_item_preferred_letter(const char *itemname)
+get_item_preferred_letter(const char *itemname, const short *filled_slots)
 {
-    char ret;
+    char ret, first, l;
     struct autoadjust_entry *aa;
 
     ret = '\0';
     if (!flags.invlet_constant)
         return '\0';
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
+        if (aa->type == AA_FORBID || aa->type == AA_NEGATE)
+            continue;
         //This will return the last match (first in file). There's no priority.
         //Should there be?
-        if (strstri(itemname, aa->name)) {
-            //If a negation exists, cancel other matches.
-            if (aa->type == AA_FORBID || aa->type == AA_NEGATE)
-                return '\0';
-            ret = aa->letter;
+        l = aa->letter;
+        if (strstri(itemname, aa->name) && !negated_match(l, itemname)) {
+            //If an empty slot is found, use the last one
+            if (!filled_slots[invlet_to_idx(l)]) {
+                ret = l;
+            }
+            //Otherwise, return the first non-empty match...
+            //unless that slot is taken from another preferred item (TODO)
+            else if (!first)
+                first = l;
         }
     }
+    if (!ret)
+        ret = first;
     return ret;
+}
+
+/*
+Check all of the negate/forbidden rules to see if one matches
+this letter/item text from another positive match
+*/
+staticfn boolean
+negated_match(char letter, const char *itemname)
+{
+    struct autoadjust_entry *aa;
+    for (aa = ga.autoadjustments; aa; aa = aa->next) {
+        if (!(aa->type == AA_FORBID || aa->type == AA_NEGATE))
+            continue;
+        if (aa->letter == letter && strstri(itemname, aa->name))
+            return TRUE;
+    }
+    return FALSE;
 }
 
 /* Returns a truthy value if any autoadjust rule exists that
