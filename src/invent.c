@@ -1371,10 +1371,11 @@ If there are multiple matching rules, will favor unused inventory slots.
 staticfn char
 get_item_preferred_letter(const char *itemname, const short *filled_slots)
 {
-    char ret, first, l;
+    char ret, taken, l;
     struct autoadjust_entry *aa;
+    struct obj *obj;
 
-    ret = '\0';
+    taken = ret = '\0';
     if (!flags.invlet_constant)
         return '\0';
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
@@ -1388,14 +1389,17 @@ get_item_preferred_letter(const char *itemname, const short *filled_slots)
             if (!filled_slots[invlet_to_idx(l)]) {
                 ret = l;
             }
-            //Otherwise, return the first non-empty match...
-            //unless that slot is taken from another preferred item (TODO)
-            else if (!first)
-                first = l;
+            //Otherwise, return the last non-empty match...
+            //unless that slot is taken from another preferred item
+            else {
+                obj = get_item_for_letter(l);
+                if (!item_is_preferred_letter(obj))
+                    taken = l;
+            }
         }
     }
     if (!ret)
-        ret = first;
+        ret = taken;
     return ret;
 }
 
