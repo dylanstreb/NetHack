@@ -202,7 +202,7 @@ static const struct instance_globals_a g_init_a = {
     { 0, 0, FALSE }, /* acid_ctx */
     TRUE, /* havestate*/
 
-    NULL, /*Autoadjust*/
+    NULL, NULL, /*Autoadjust*/
 };
 
 static const struct instance_globals_b g_init_b = {

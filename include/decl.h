@@ -184,6 +184,8 @@ struct instance_globals_a {
 
     /* Autoadjust patch */
     struct autoadjust_entry *autoadjustments;
+
+    struct autoadjust_entry *autoadjust_negate;
 };
 
 struct instance_globals_b {

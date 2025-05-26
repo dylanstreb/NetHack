@@ -9447,9 +9447,15 @@ add_autoadjust(char letter, enum autoadjust_type type, const char *text)
     aa = (struct autoadjust_entry *) alloc(sizeof *aa);
     aa->name = dupstr(text);
     aa->letter = letter;
-    aa->next = ga.autoadjustments;
     aa->type = type;
-    ga.autoadjustments = aa;
+    if (type == AA_FORBID || type == AA_NEGATE) {
+        aa->next = ga.autoadjust_negate;
+        ga.autoadjust_negate = aa;
+    }
+    else {
+        aa->next = ga.autoadjustments;
+        ga.autoadjustments = aa;
+    }
 
     return 1;
 }
@@ -9477,7 +9483,8 @@ staticfn void
 remove_autoadjust(struct autoadjust_entry *which)
 {
     /*This would be for removing from a menu, so not yet needed.*/
-    struct autoadjust_entry *aa, *free_aa, *prev = 0;
+    struct autoadjust_entry *aa, *free_aa, *prev;
+    prev = free_aa = 0;
 
     for (aa = ga.autoadjustments; aa;) {
         if (aa == which) {
@@ -9487,12 +9494,29 @@ remove_autoadjust(struct autoadjust_entry *which)
                 prev->next = aa;
             else
                 ga.autoadjustments = aa;
-            free((genericptr_t) free_aa->name);
-            free((genericptr_t) free_aa);
+            break;
         } else {
             prev = aa;
             aa = aa->next;
         }
+    }
+    for (aa = ga.autoadjust_negate; aa;) {
+        if (aa == which) {
+            free_aa = aa;
+            aa = aa->next;
+            if (prev)
+                prev->next = aa;
+            else
+                ga.autoadjustments = aa;
+            break;
+        } else {
+            prev = aa;
+            aa = aa->next;
+        }
+    }
+    if (free_aa) {
+        free((genericptr_t) free_aa->name);
+        free((genericptr_t) free_aa);
     }
 }
 
@@ -9504,6 +9528,11 @@ free_autoadjust_entries(void)
     while ((aa = ga.autoadjustments) != 0) {
         free((genericptr_t) aa->name);
         ga.autoadjustments = aa->next;
+        free((genericptr_t) aa);
+    }
+    while ((aa = ga.autoadjust_negate) != 0) {
+        free((genericptr_t) aa->name);
+        ga.autoadjust_negate = aa->next;
         free((genericptr_t) aa);
     }
 }

@@ -1341,10 +1341,13 @@ item_is_preferred_letter(struct obj *obj)
 
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
         if (aa->letter == letter && strstri(text, aa->name)) {
-            //If a negation exists always return false.
-            if (aa->type == AA_FORBID || aa->type == AA_NEGATE)
-                return FALSE;
             ret = TRUE;
+        }
+    }
+    for (aa = ga.autoadjust_negate; aa; aa = aa->next) {
+        if (aa->letter == letter && strstri(text, aa->name)) {
+            //If a negation exists always return false.
+            return FALSE;
         }
     }
     return ret;
@@ -1379,8 +1382,6 @@ get_item_preferred_letter(const char *itemname, const short *filled_slots)
     if (!flags.invlet_constant)
         return '\0';
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
-        if (aa->type == AA_FORBID || aa->type == AA_NEGATE)
-            continue;
         //This will return the last match (first in file). There's no priority.
         //Should there be?
         l = aa->letter;
@@ -1411,9 +1412,7 @@ staticfn boolean
 negated_match(char letter, const char *itemname)
 {
     struct autoadjust_entry *aa;
-    for (aa = ga.autoadjustments; aa; aa = aa->next) {
-        if (!(aa->type == AA_FORBID || aa->type == AA_NEGATE))
-            continue;
+    for (aa = ga.autoadjust_negate; aa; aa = aa->next) {
         if (aa->letter == letter && strstri(itemname, aa->name))
             return TRUE;
     }
@@ -1439,6 +1438,10 @@ is_reserved_letter(const char *text, char letter)
             //The caller should automatically re-assign the letter
             if (aa->type == AA_RESERVED || aa->type == AA_EXCLUSIVE)
                 return 1 + (aa->type == AA_RESERVED);
+        }
+    }
+    for (aa = ga.autoadjust_negate; aa; aa = aa->next) {
+        if (aa->letter == letter) {
             if (aa->type == AA_FORBID && strstri(text, aa->name))
                 return 1;
         }
