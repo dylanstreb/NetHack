@@ -1394,7 +1394,7 @@ get_item_preferred_letter(const char *itemname, const short *filled_slots)
             //unless that slot is taken from another preferred item
             else {
                 obj = get_item_for_letter(l);
-                if (!item_is_preferred_letter(obj))
+                if (!obj || !item_is_preferred_letter(obj))
                     taken = l;
             }
         }
@@ -1481,6 +1481,89 @@ swap_items(struct obj *newobj, struct obj *oldobj)
     oldobj->where = OBJ_INVENT;
     gi.invent = oldobj;
     reorder_invent();
+}
+
+/*
+Attempt to automatically move items to new letters matching autoadjust rules.
+This is primarily for identification adding new information,
+e.g. a rule matching an identified luckstone and not any gray rock.
+*/
+int
+doautoorganize(void)
+{
+    //0 - available 1 - not available 2 - not available, never swap
+    int i;
+    short inuse[invlet_basic];
+    struct obj *obj, *other;
+    char itemname[BUFSZ];
+    char preferred;
+    boolean did_something = FALSE;
+
+    /* when no invent, or just gold in '$' slot, there's nothing to adjust */
+    if (!gi.invent || (gi.invent->oclass == COIN_CLASS
+                      && gi.invent->invlet == GOLD_SYM && !gi.invent->nobj)) {
+        You("aren't carrying anything %s.",
+            !gi.invent ? "to adjust" : "adjustable");
+        return ECMD_OK;
+    }
+    if (!flags.invlet_constant)
+        return ECMD_OK;
+
+    for (i = 0; i < invlet_basic; i++)
+        inuse[i] = 0;
+    for (obj = gi.invent; obj; obj = obj->nobj) {
+        i = invlet_to_idx(obj->invlet);
+        inuse[i] = 1;
+        if (item_is_preferred_letter(obj))
+            inuse[i] = 2;
+    }
+    for (i = 0; i < invlet_basic; i++) {
+        if (!inuse[i]) {
+            //This can return 2 for forbidden, but that's not wanted here.
+            inuse[i] = is_reserved_letter(
+                itemname,
+                idx_to_invlet(i)
+            ) > 0;
+        }
+    }
+
+    for (obj = gi.invent; obj; obj = obj->nobj) {
+        i = invlet_to_idx(obj->invlet);
+        //Flagged as preferred already. Skip.
+        if (inuse[i] > 1)
+            continue;
+        get_item_match_name(obj, itemname);
+        preferred = get_item_preferred_letter(itemname, inuse);
+        if (!preferred || preferred == obj->invlet 
+            || inuse[invlet_to_idx(preferred)] > 1)
+            continue;
+        did_something = TRUE;
+        if (inuse[invlet_to_idx(preferred)] == 0 || 
+            (other = get_item_for_letter(preferred)) == NULL) {
+            obj->invlet = preferred;
+            prinv("Moving:", obj, 0L);
+            inuse[i] = 0;
+            inuse[invlet_to_idx(preferred)] = 2;
+            continue;
+        }
+        //swap removes the new item but expects old to already be removed
+        extract_nobj(obj, &gi.invent);
+        swap_items(obj, other);
+        //Add obj
+        obj->nobj = gi.invent;
+        obj->where = OBJ_INVENT;
+        gi.invent = obj;
+        prinv("Swapping:", obj, 0L);
+        inuse[invlet_to_idx(preferred)] = 2;
+    }
+
+    if (did_something) {
+        reorder_invent();
+        pline("Done.");
+    }
+    else 
+        pline("Nothing to reorder.");
+    return ECMD_OK;
 }
 
 /* Add an item to the inventory unless we're fumbling or it refuses to be

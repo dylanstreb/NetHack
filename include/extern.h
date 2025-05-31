@@ -1334,6 +1334,7 @@ extern void free_invbuf(void);
 extern void reassign(void);
 extern boolean check_invent_gold(const char *) NONNULLARG1;
 extern int doorganize(void);
+extern int doautoorganize(void);
 extern int adjust_split(void);
 extern void free_pickinv_cache(void);
 /* sometimes count_unpaid(gi.invent) which can be null */
