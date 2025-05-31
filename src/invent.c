@@ -1460,6 +1460,12 @@ staticfn void
 swap_items(struct obj *newobj, struct obj *oldobj)
 {
     char newletter, oldletter;
+    boolean new_in_invent = (newobj->where == OBJ_INVENT);
+
+    if (new_in_invent) {
+        //Remove from inv then re-add. Caller might not this item in inv.
+        extract_nobj(newobj, &gi.invent);
+    }
 
     if (newobj->where != OBJ_FREE)
         panic("swap_items: newobj should be out of inventory.");
@@ -1480,6 +1486,12 @@ swap_items(struct obj *newobj, struct obj *oldobj)
     oldobj->nobj = gi.invent;
     oldobj->where = OBJ_INVENT;
     gi.invent = oldobj;
+    if (new_in_invent) {
+        //Re-add the other object if needed
+        newobj->where = OBJ_INVENT;
+        newobj->nobj = gi.invent;
+        gi.invent = newobj;
+    }
     reorder_invent();
 }
 
@@ -1546,13 +1558,8 @@ doautoorganize(void)
             inuse[invlet_to_idx(preferred)] = 2;
             continue;
         }
-        //swap removes the new item but expects old to already be removed
-        extract_nobj(obj, &gi.invent);
         swap_items(obj, other);
         //Add obj
-        obj->nobj = gi.invent;
-        obj->where = OBJ_INVENT;
-        gi.invent = obj;
         prinv("Swapping:", obj, 0L);
         inuse[invlet_to_idx(preferred)] = 2;
     }
