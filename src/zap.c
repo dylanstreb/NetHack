@@ -3628,7 +3628,7 @@ zap_map(
     ttmp = t_at(x, y); /* refresh in case trap was altered or is gone */
 
     if (u.dz > 0) { /* zapping down */
-        char ebuf[BUFSZ];
+        char ebuf[BUFSZ], pristinebuf[BUFSZ], *etxt;
         struct engr *e = engr_at(x, y);
 
         /* subset of engraving effects; none sets `disclose' */
@@ -3637,7 +3637,8 @@ zap_map(
             case WAN_POLYMORPH:
             case SPE_POLYMORPH:
                 del_engr(e);
-                make_engr_at(x, y, random_engraving(ebuf), svm.moves, 0);
+                etxt = random_engraving(ebuf, pristinebuf);
+                make_engr_at(x, y, etxt, pristinebuf, svm.moves, 0);
                 break;
             case WAN_CANCELLATION:
             case SPE_CANCELLATION:
@@ -3956,9 +3957,15 @@ bhit(
            give message and skip it in order to keep going;
            if attack is light and mtmp is a mimic pretending to be an
            object, behave as if there is no monster here (if pretending
-           to be furniture, it will be revealed by flash_hits_mon()) */
+           to be furniture, it will be revealed by flash_hits_mon());
+           thrown objects don't hit mimics pretending to be objects (both
+           because the hero is likely aiming to throw over what seems to
+           be an object rather than at it, and for balance because
+           otherwise mimics are too easy to identify by throwing gold at
+           them) */
         if (mtmp && (((weapon == THROWN_WEAPON || weapon == KICKED_WEAPON)
-                      && shade_miss(&gy.youmonst, mtmp, obj, TRUE, TRUE))
+                      && (shade_miss(&gy.youmonst, mtmp, obj, TRUE, TRUE)
+                          || M_AP_TYPE(mtmp) == M_AP_OBJECT))
                      || (weapon == FLASHED_LIGHT
                          && M_AP_TYPE(mtmp) == M_AP_OBJECT)))
             mtmp = (struct monst *) 0;

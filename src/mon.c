@@ -233,6 +233,19 @@ sanity_check_single_mon(
                        mtmp->m_id, distu(mtmp->mx, mtmp->my));
 #endif
     }
+    if (MON_WEP(mtmp)) { /* mtmp->mw */
+        struct obj *o;
+
+        for (o = mtmp->minvent; o; o = o->nobj)
+            if (o == MON_WEP(mtmp))
+                break;
+        if (!o) {
+            o = MON_WEP(mtmp);
+            impossible("monst (%s: %u) wielding %s (%u) not in inventory",
+                       pmname(mtmp->data, Mgender(mtmp)), mtmp->m_id,
+                       safe_typename(o->otyp), o->o_id);
+        }
+    }
 }
 
 void
@@ -2347,9 +2360,21 @@ mfndpos(
 staticfn long
 mm_2way_aggression(struct monst *magr, struct monst *mdef)
 {
-    /* zombies vs things that can be zombified */
+    /* liches/zombies vs things that can be zombified
+
+       Note: avoid this on the Castle level, partly for balance reasons
+       (the monster-versus-monster fights clear out significant portions of
+       the Castle and make it easier than it should be), partly for flavor
+       reasons (monsters who attacked other monsters to zombify them would
+       have been counterattacked to death long before the hero arried).
+
+       Also don't include unique monsters in this, otherwise it leads to
+       them waking up early (e.g. because a zombie decided to attack the
+       Wizard of Yendor). */
     if (zombie_maker(magr) && zombie_form(mdef->data) != NON_PM)
-        return (ALLOW_M | ALLOW_TM);
+        if (!Is_stronghold(&u.uz) &&
+            !unique_corpstat(magr->data) && !unique_corpstat(mdef->data))
+            return (ALLOW_M | ALLOW_TM);
 
     return 0;
 }

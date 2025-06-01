@@ -1111,7 +1111,7 @@ mksobj_init(struct obj **obj, boolean artif)
         break;
     case WAND_CLASS:
         if (otmp->otyp == WAN_WISHING)
-            otmp->spe = rnd(3);
+            otmp->spe = 1;
         else
             otmp->spe = rn1(5,
                             (objects[otmp->otyp].oc_dir == NODIR) ? 11 : 4);
@@ -2154,6 +2154,7 @@ save_mtraits(struct obj *obj, struct monst *mtmp)
         mtmp2->nmon = (struct monst *) 0;
         mtmp2->data = (struct permonst *) 0;
         mtmp2->minvent = (struct obj *) 0;
+        MON_NOWEP(mtmp2); /* mtmp2->mw = (struct obj *) 0; */
         if (mtmp->mextra)
             copy_mextra(mtmp2, mtmp);
         /* if mtmp is a long worm with segments, its saved traits will

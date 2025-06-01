@@ -975,7 +975,7 @@ extern char *build_english_list(char *) NONNULLARG1;
 
 /* ### engrave.c ### */
 
-extern char *random_engraving(char *) NONNULLARG1;
+extern char *random_engraving(char *, char *) NONNULLARG12;
 extern void wipeout_text(char *, int, unsigned) NONNULLARG1;
 extern boolean can_reach_floor(boolean);
 extern void cant_reach_floor(coordxy, coordxy, boolean, boolean);
@@ -984,7 +984,7 @@ extern struct engr *sengr_at(const char *, coordxy, coordxy, boolean) NONNULLARG
 extern void u_wipe_engr(int);
 extern void wipe_engr_at(coordxy, coordxy, xint16, boolean);
 extern void read_engr_at(coordxy, coordxy);
-extern void make_engr_at(coordxy, coordxy, const char *, long, int) NONNULLARG3;
+extern void make_engr_at(coordxy, coordxy, const char *, const char *, long, int) NONNULLARG3;
 extern void del_engr_at(coordxy, coordxy);
 extern int freehand(void);
 extern int doengrave(void);
@@ -1036,7 +1036,7 @@ extern char *fname_encode(const char *, char,
 extern char *fname_decode(char, char *, char *, int) NONNULLPTRS;
 extern const char *fqname(const char *, int, int);
 extern FILE *fopen_datafile(const char *, const char *, int) NONNULLPTRS;
-extern void zero_nhfile(NHFILE *) NONNULLARG1;
+extern void init_nhfile(NHFILE *) NONNULLARG1;
 extern void close_nhfile(NHFILE *) NONNULLARG1;
 extern void rewind_nhfile(NHFILE *) NONNULLARG1;
 extern void set_levelfile_name(char *, int) NONNULLARG1;
@@ -1059,6 +1059,7 @@ extern void set_error_savefile(void);
 extern NHFILE *create_savefile(void);
 extern NHFILE *open_savefile(void);
 extern int delete_savefile(void);
+extern NHFILE *get_freeing_nhfile(void);
 extern NHFILE *restore_saved_game(void);
 extern int check_panic_save(void);
 #ifdef SELECTSAVED
@@ -1068,6 +1069,10 @@ extern char **get_saved_games(void);
 extern void free_saved_games(char **);
 extern void nh_compress(const char *);
 extern void nh_uncompress(const char *);
+extern void nh_sfconvert(const char *);
+extern void nh_sfunconvert(const char *);
+extern int delete_convertedfile(const char *);
+extern void free_convert_filenames(void);
 extern boolean lock_file(const char *, int, int) NONNULLARG1;
 extern void unlock_file(const char *) NONNULLARG1;
 extern void check_recordfile(const char *);
@@ -1093,6 +1098,7 @@ extern boolean read_tribute(const char *, const char *, int, char *, int,
 extern boolean Death_quote(char *, int) NONNULLARG1;
 extern void livelog_add(long ll_type, const char *) NONNULLARG2;
 ATTRNORETURN extern void do_deferred_showpaths(int) NORETURN;
+extern boolean contains_directory(const char *);
 
 /* ### fountain.c ### */
 
@@ -1971,6 +1977,7 @@ extern int dosuspend(void);
 extern void nt_regularize(char *);
 extern int(*nt_kbhit)(void);
 extern void Delay(int);
+boolean get_user_home_folder(char *, size_t);
 # ifdef CRASHREPORT
 struct CRctxt;
 extern struct CRctxt *ctxp;
@@ -1978,7 +1985,6 @@ extern int win32_cr_helper(char, struct CRctxt *, void *, int);
 extern int win32_cr_gettrace(int, char *, int);
 extern int *win32_cr_shellexecute(const char *);
 # endif
-extern boolean contains_directory(const char *);
 #endif /* WIN32 */
 
 #endif /* MICRO || WIN32 */
@@ -2679,10 +2685,15 @@ extern void get_plname_from_file(NHFILE *, char *, boolean) NONNULLARG12;
 extern int restore_menu(winid);
 #endif
 extern boolean lookup_id_mapping(unsigned, unsigned *) NONNULLARG2;
-extern int validate(NHFILE *, const char *, boolean) NONNULLARG1;
 /* extern void reset_restpref(void); */
 /* extern void set_restpref(const char *); */
 /* extern void set_savepref(const char *); */
+#ifdef SFCTOOL
+void rest_bubbles(NHFILE *);
+void restore_gamelog(NHFILE *);
+boolean restgamestate(NHFILE *);
+void restore_msghistory(NHFILE *);
+#endif
 
 /* ### rip.c ### */
 
@@ -3500,8 +3511,7 @@ extern boolean comp_times(long);
 #endif
 extern boolean check_version(struct version_info *, const char *, boolean,
                              unsigned long) NONNULLARG1;
-extern boolean uptodate(NHFILE *, const char *, unsigned long) NONNULLARG1;
-extern void store_formatindicator(NHFILE *) NONNULLARG1;
+extern int uptodate(NHFILE *, const char *, unsigned long) NONNULLARG1;
 extern void store_version(NHFILE *) NONNULLARG1;
 extern unsigned long get_feature_notice_ver(char *) NO_NNARGS;
 extern unsigned long get_current_feature_ver(void);
@@ -3509,8 +3519,9 @@ extern const char *copyright_banner_line(int) NONNULL;
 extern void early_version_info(boolean);
 extern void dump_version_info(void);
 extern void store_critical_bytes(NHFILE *) NONNULLARG1;
-extern int compare_critical_bytes(NHFILE *);
+extern int compare_critical_bytes(NHFILE *, int *, unsigned long) NONNULLARG1;
 extern int get_critical_size_count(void);
+extern int validate(NHFILE *, const char *, boolean) NONNULLARG1;
 
 /* ### video.c ### */
 
