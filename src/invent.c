@@ -1317,6 +1317,23 @@ get_item_match_name(struct obj *obj, char buf[])
                 break;
         }
     }
+    //Ammo and throwables are weapon class, but aren't wielded like a weapon
+    switch (otyp) {
+        case ARROW:
+        case ELVEN_ARROW:
+        case ORCISH_ARROW:
+        case SILVER_ARROW:
+        case YA:
+        case CROSSBOW_BOLT:
+        //flint stone cannot be included as this would leak information
+            typename = "Ammo|Ammunition";
+            break;
+        case DART:
+        case SHURIKEN:
+        case BOOMERANG:
+            typename = "missile";
+            break;
+    }
     //typename is always available, even when blind
     //artifact name?
 

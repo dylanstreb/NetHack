@@ -104,6 +104,7 @@ staticfn boolean can_do_extcmd(const struct ext_func_tab *);
 staticfn int dotravel(void);
 staticfn int dotravel_target(void);
 staticfn int doclicklook(void);
+staticfn int doitemname(void);
 staticfn boolean yn_menuable_resp(const char *);
 staticfn void yn_func_menu_opt(winid, char, const char *, char);
 staticfn boolean yn_function_menu(const char *, const char *, char, char *);
@@ -1653,7 +1654,7 @@ struct ext_func_tab extcmdlist[] = {
               NULL },
     { M('a'), "adjust", "adjust inventory letters",
               doorganize, IFBURIED | AUTOCOMPLETE, NULL },
-    { '\0', "autoadjust", "automatically adjust inventory letters",
+    { '\0',   "autoadjust", "automatically adjust inventory letters",
               doautoorganize, IFBURIED | AUTOCOMPLETE, NULL },
     { M('A'), "annotate", "name current level",
               donamelevel, IFBURIED | AUTOCOMPLETE | GENERALCMD, NULL },
@@ -1726,6 +1727,8 @@ struct ext_func_tab extcmdlist[] = {
               dotypeinv, IFBURIED, NULL },
     { M('i'), "invoke", "invoke an object's special powers",
               doinvoke, IFBURIED | AUTOCOMPLETE, NULL },
+    { '\0',   "itemmatchname", "Display item's autoadjust rule name",
+              doitemname, IFBURIED | AUTOCOMPLETE, NULL },
     { M('j'), "jump", "jump to another location",
               dojump, AUTOCOMPLETE, NULL },
     { C('d'), "kick", "kick something",
@@ -5154,6 +5157,24 @@ doclicklook(void)
     svc.context.move = FALSE;
     auto_describe(gc.clicklook_cc.x, gc.clicklook_cc.y);
 
+    return ECMD_OK;
+}
+
+staticfn int
+doitemname(void)
+{
+    struct obj *obj;
+    char itemname[BUFSZ];
+
+    if (!flags.invlet_constant)
+        return ECMD_CANCEL;
+
+    obj = getobj("get the name of", any_obj_ok, GETOBJ_PROMPT);
+    if (!obj)
+        return ECMD_CANCEL;
+
+    get_item_match_name(obj, itemname);
+    pline("%s - %s", doname(obj), itemname);
     return ECMD_OK;
 }
 
