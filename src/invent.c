@@ -49,14 +49,16 @@ staticfn void ia_addmenu(winid, int, char, const char *);
 staticfn void itemactions_pushkeys(struct obj *, int);
 staticfn int itemactions(struct obj *);
 staticfn int dispinv_with_action(char *, boolean, const char *);
+staticfn void calculate_inuse(short *);
 staticfn struct obj *get_item_for_letter(char);
 staticfn boolean item_is_preferred_letter(struct obj *);
 staticfn char should_swap(struct obj *, const char *, const short *);
 staticfn char get_item_preferred_letter(const char *, const short *);
-staticfn short is_reserved_letter(const char *, char);
+staticfn short is_reserved_letter(char);
+staticfn short is_forbidden(const char *, char);
 staticfn void swap_items(struct obj *, struct obj *);
-char idx_to_invlet(short);
-short invlet_to_idx(char);
+staticfn char idx_to_invlet(short);
+staticfn short invlet_to_idx(char);
 staticfn boolean negated_match(char, const char *);
 
 /* enum and structs are defined in wintype.h */
@@ -710,29 +712,69 @@ sortloot(
 #endif /*0*/
 
 //(invletter_value can't be used because it treats 'a' as 1)
-char
+staticfn char
 idx_to_invlet(short i)
 {
     return (i < 26) ? ('a' + i) : ('A' + i - 26);
 }
 
-short
+staticfn short
 invlet_to_idx(char c)
 {
     if ('a' <= c && c <= 'z')
         return (c - 'a');
     else if ('A' <= c && c <= 'Z')
         return (c - 'A' + 26);
-    //should be an error
+    //'#' is also a valid invlet. \0 should also return -1.
     return -1;
+}
+
+/* used for the inuse array. Flags. */
+enum obj_inuse_flags {
+    AA_NONE = 0,
+    AA_SLOT_USED = 1, /*An actual object is here*/
+    AA_SLOT_PREFERRED = 2, /*Implies 'used' as well*/
+    AA_SLOT_RESERVED = 4, /*Possibly no obj, but act like there is one*/
+    AA_SLOT_EXCLUSIVE = 8, /*Possibly no obj, but act like there is one*/
+    AA_RESERVE = AA_SLOT_RESERVED|AA_SLOT_EXCLUSIVE,
+};
+
+/*
+Fills in an array used to determine which inventory letters are in use.
+Adapted from the vanilla code, but with many more flags to
+handle the auto-adjust logic.
+*/
+staticfn void
+calculate_inuse(short *inuse)
+{
+    int i;
+    struct obj *obj;
+
+    for (i = 0; i < invlet_basic; i++)
+        inuse[i] = 0;
+    for (obj = gi.invent; obj; obj = obj->nobj) {
+        i = invlet_to_idx(obj->invlet);
+        if (i == -1)
+            continue;
+        inuse[i] = AA_SLOT_USED;
+        if (item_is_preferred_letter(obj))
+            inuse[i] |= AA_SLOT_PREFERRED;
+    }
+    for (i = 0; i < invlet_basic; i++) {
+        //Reservations don't matter if something's already there
+        if (!inuse[i]) {
+            //Return value is either 0 or one of the reservation flags.
+            inuse[i] |= is_reserved_letter(idx_to_invlet(i));
+        }
+    }
 }
 
 void
 assigninvlet(struct obj *otmp)
 {
-    short inuse[invlet_basic], reserved[invlet_basic];
+    short inuse[invlet_basic];
     int i, saved;
-    struct obj *obj, *other;
+    struct obj *other;
     char preferred;
     char itemname[BUFSZ];
     get_item_match_name(otmp, itemname);
@@ -744,28 +786,16 @@ assigninvlet(struct obj *otmp)
     }
 
     saved = -1;
-    for (i = 0; i < invlet_basic; i++)
-        inuse[i] = FALSE;
-    for (obj = gi.invent; obj; obj = obj->nobj)
-        if (obj != otmp) {
-            i = obj->invlet;
-            if ('a' <= i && i <= 'z')
-                inuse[i - 'a'] = TRUE;
-            else if ('A' <= i && i <= 'Z')
-                inuse[i - 'A' + 26] = TRUE;
-            if (i == otmp->invlet)
-                otmp->invlet = 0;
-        }
-    if ((i = otmp->invlet)
-        && (('a' <= i && i <= 'z') || ('A' <= i && i <= 'Z')))
+    calculate_inuse(inuse);
+    //If obj already has an assigned letter, keep it if possible.
+    i = invlet_to_idx(otmp->invlet);
+    if (i >= 0 && !inuse[i])
         return;
-    memcpy(reserved, inuse, sizeof(inuse));
+    else
+        otmp->invlet = 0;
     for (i = 0; i < invlet_basic; i++) {
         if (!inuse[i]) {
-            inuse[i] = is_reserved_letter(
-                itemname,
-                idx_to_invlet(i)
-            );
+            inuse[i] |= is_forbidden(itemname, idx_to_invlet(i));
         }
     }
     for (i = gl.lastinvnr + 1; i != gl.lastinvnr; i++) {
@@ -776,17 +806,18 @@ assigninvlet(struct obj *otmp)
         if (!inuse[i])
             break;
         //Record the first non-exclusive reserved letter.
-        if (inuse[i] == 2 && saved == -1) {
+        if (inuse[i] == AA_SLOT_RESERVED && saved == -1) {
             saved = i;
         }
     }
-    if (inuse[i] && saved != -1 && inuse[saved] == 2) {
+    //(inuse[i] & AA_RESERVE) == AA_SLOT_RESERVED
+    if (inuse[i] == AA_SLOT_RESERVED && saved != -1) {
         i = saved;
         inuse[i] = 0;
     }
     otmp->invlet =
         (inuse[i] ? NOINVSYM : (i < 26) ? ('a' + i) : ('A' + i - 26));
-    if ((preferred = should_swap(otmp, itemname, reserved))) {
+    if ((preferred = should_swap(otmp, itemname, inuse))) {
         other = get_item_for_letter(preferred);
         //If there is an existing item in this slot, swap.
         //Otherwise, just use it.
@@ -871,6 +902,7 @@ merge_choice(struct obj *objlist, struct obj *obj)
            too much upon shk's bill) and if it doesn't merge it would
            end up in the '#' overflow inventory slot, so reject it now. */
         else if (inhishop(shkp))
+
             return (struct obj *) 0;
     }
     do {
@@ -1439,11 +1471,9 @@ negated_match(char letter, const char *itemname)
 /* Returns a truthy value if any autoadjust rule exists that
 reserves this letter. This is either exclusive (nothing else allowed)
 or soft (favor other letters until inv is full).
-'2' is returned in the latter case.
-Also checks if the specific item has an exclusion rule
 */
 staticfn short
-is_reserved_letter(const char *text, char letter)
+is_reserved_letter(char letter)
 {
     struct autoadjust_entry *aa;
     if (!flags.invlet_constant)
@@ -1451,16 +1481,24 @@ is_reserved_letter(const char *text, char letter)
 
     for (aa = ga.autoadjustments; aa; aa = aa->next) {
         if (aa->letter == letter) {
-            //This doesn't check if the reservation is for this item.
-            //The caller should automatically re-assign the letter
-            if (aa->type == AA_RESERVED || aa->type == AA_EXCLUSIVE)
-                return 1 + (aa->type == AA_RESERVED);
+            if (aa->type == AA_RESERVED)
+                return AA_SLOT_RESERVED;
+            else if (aa->type == AA_EXCLUSIVE)
+                return AA_SLOT_EXCLUSIVE;
         }
     }
+    return 0;
+}
+
+/*Check if this specific item is forbidden from being used as this letter*/
+staticfn short
+is_forbidden(const char *text, char letter)
+{
+    struct autoadjust_entry *aa;
     for (aa = ga.autoadjust_negate; aa; aa = aa->next) {
         if (aa->letter == letter) {
             if (aa->type == AA_FORBID && strstri(text, aa->name))
-                return 1;
+                return AA_SLOT_EXCLUSIVE;
         }
     }
     return 0;
@@ -1522,7 +1560,7 @@ doautoorganize(void)
 {
     //0 - available 1 - not available 2 - not available, never swap
     int i;
-    short inuse[invlet_basic];
+    short inuse[invlet_basic], tmp;
     struct obj *obj, *other;
     char itemname[BUFSZ];
     char preferred;
@@ -1538,47 +1576,47 @@ doautoorganize(void)
     if (!flags.invlet_constant)
         return ECMD_OK;
 
-    for (i = 0; i < invlet_basic; i++)
-        inuse[i] = 0;
-    for (obj = gi.invent; obj; obj = obj->nobj) {
-        i = invlet_to_idx(obj->invlet);
-        inuse[i] = 1;
-        if (item_is_preferred_letter(obj))
-            inuse[i] = 2;
-    }
-    for (i = 0; i < invlet_basic; i++) {
-        if (!inuse[i]) {
-            //This can return 2 for forbidden, but that's not wanted here.
-            inuse[i] = is_reserved_letter(
-                itemname,
-                idx_to_invlet(i)
-            ) > 0;
-        }
-    }
-
+    calculate_inuse(inuse);
     for (obj = gi.invent; obj; obj = obj->nobj) {
         i = invlet_to_idx(obj->invlet);
         //Flagged as preferred already. Skip.
-        if (inuse[i] > 1)
+        if (inuse[i] & AA_SLOT_PREFERRED)
             continue;
         get_item_match_name(obj, itemname);
         preferred = get_item_preferred_letter(itemname, inuse);
         if (!preferred || preferred == obj->invlet 
-            || inuse[invlet_to_idx(preferred)] > 1)
+            || (inuse[invlet_to_idx(preferred)] & AA_SLOT_PREFERRED))
             continue;
         did_something = TRUE;
         if (inuse[invlet_to_idx(preferred)] == 0 || 
             (other = get_item_for_letter(preferred)) == NULL) {
             obj->invlet = preferred;
             prinv("Moving:", obj, 0L);
+            inuse[invlet_to_idx(preferred)] = inuse[i];
             inuse[i] = 0;
-            inuse[invlet_to_idx(preferred)] = 2;
             continue;
         }
         swap_items(obj, other);
-        //Add obj
         prinv("Swapping:", obj, 0L);
-        inuse[invlet_to_idx(preferred)] = 2;
+        tmp = inuse[i];
+        inuse[i] = inuse[invlet_to_idx(preferred)];
+        inuse[invlet_to_idx(preferred)] = tmp;
+    }
+
+    for (obj = gi.invent; obj; obj = obj->nobj) {
+        //Handle forbidden items from identification or the previous block
+        get_item_match_name(obj, itemname);
+        if (is_forbidden(itemname, obj->invlet)) {
+            for (i = 0; i < invlet_basic; i++) {
+                if (inuse[i] || is_forbidden(itemname, idx_to_invlet(i)))
+                    continue;
+                obj->invlet = idx_to_invlet(i);
+                prinv("Moving:", obj, 0L);
+                inuse[i] = AA_SLOT_USED;
+                did_something = TRUE;
+                break;
+            }
+        }
     }
 
     if (did_something) {
