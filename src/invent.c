@@ -1588,21 +1588,22 @@ doautoorganize(void)
             || (inuse[invlet_to_idx(preferred)] & AA_SLOT_PREFERRED))
             continue;
         did_something = TRUE;
-        if (inuse[invlet_to_idx(preferred)] == 0 || 
-            (other = get_item_for_letter(preferred)) == NULL) {
+        other = get_item_for_letter(preferred);
+        if (other == NULL) {
             obj->invlet = preferred;
             prinv("Moving:", obj, 0L);
-            inuse[invlet_to_idx(preferred)] = inuse[i];
-            inuse[i] = 0;
-            continue;
         }
-        swap_items(obj, other);
-        prinv("Swapping:", obj, 0L);
+        else {
+            swap_items(obj, other);
+            prinv("Swapping:", obj, 0L);
+        }
         tmp = inuse[i];
         inuse[i] = inuse[invlet_to_idx(preferred)];
         inuse[invlet_to_idx(preferred)] = tmp;
     }
-
+    if (did_something) {
+        reorder_invent();
+    }
     for (obj = gi.invent; obj; obj = obj->nobj) {
         //Handle forbidden items from identification or the previous block
         get_item_match_name(obj, itemname);
